@@ -21,10 +21,14 @@ export function NodesPage() {
 
   const handleAddToWatch = () => {
     if (selectedNode) {
+      const sentimentDiff = selectedNode.afterSentiment - selectedNode.beforeSentiment;
       openWatchModalWithPrefill({
         title: `关注: ${selectedNode.title}`,
-        description: `${selectedNode.description}。上线前情绪 ${(selectedNode.beforeSentiment * 100).toFixed(0)}%，上线后 ${(selectedNode.afterSentiment * 100).toFixed(0)}%，峰值讨论 ${(selectedNode.peakDiscussion / 1000).toFixed(1)}k。`,
+        description: `${selectedNode.description}。上线前情绪 ${(selectedNode.beforeSentiment * 100).toFixed(0)}%，上线后 ${(selectedNode.afterSentiment * 100).toFixed(0)}%（${sentimentDiff >= 0 ? '+' : ''}${(sentimentDiff * 100).toFixed(1)}%），峰值讨论 ${(selectedNode.peakDiscussion / 1000).toFixed(1)}k，评论 ${selectedNode.commentCount} 条。`,
         relatedNodeId: selectedNode.id,
+        sourceType: 'node',
+        sourceTitle: selectedNode.title,
+        priority: sentimentDiff < -0.1 ? 'high' : 'medium',
       });
     }
   };

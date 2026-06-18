@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Clock, User, AlertTriangle, CheckCircle, Copy, Check } from 'lucide-react';
-import type { WatchItem, Priority, WatchStatus } from '@/types';
+import { Clock, User, AlertTriangle, CheckCircle, Copy, Check, GitBranch, MessageSquare } from 'lucide-react';
+import type { WatchItem, Priority, WatchStatus, SourceType } from '@/types';
 import { useAppStore } from '@/store/useAppStore';
 import { cn } from '@/lib/utils';
 
@@ -11,9 +11,16 @@ const priorityConfig: Record<Priority, { label: string; color: string }> = {
 };
 
 const statusConfig: Record<WatchStatus, { label: string; color: string; icon: typeof Clock }> = {
+  pending: { label: '待处理', color: 'text-slate-400', icon: Clock },
   watching: { label: '观察中', color: 'text-blue-400', icon: Clock },
   resolved: { label: '已解决', color: 'text-emerald-400', icon: CheckCircle },
   escalated: { label: '需升级', color: 'text-rose-400', icon: AlertTriangle },
+};
+
+const sourceTypeConfig: Record<SourceType, { label: string; icon: typeof GitBranch }> = {
+  node: { label: '版本节点', icon: GitBranch },
+  controversy: { label: '社区争议', icon: MessageSquare },
+  manual: { label: '手动添加', icon: Clock },
 };
 
 function getDaysUntil(dateStr: string): number {
@@ -68,36 +75,69 @@ function groupForMeeting(items: WatchItem[]): MeetingGroup[] {
   return groups;
 }
 
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+}
+
 function generateMeetingMinutes(items: WatchItem[]): string {
   const today = new Date().toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    weekday: 'long',
   });
 
   const groups = groupForMeeting(items);
-  let text = `口碑观察例会纪要\n日期：${today}\n\n`;
+  let text = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `       口碑观察例会纪要\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `日期：${today}\n\n`;
+
+  let totalActions = 0;
+  let totalResolved = 0;
 
   groups.forEach((group) => {
     if (group.items.length === 0) return;
-    text += `【${group.title}】\n`;
+    text += `【${group.title}】─────────────────────────\n`;
     group.items.forEach((item, idx) => {
       const days = getDaysUntil(item.nextReviewDate);
       const timeStr = days < 0 ? `逾期${Math.abs(days)}天` : days === 0 ? '今天到期' : `${days}天后到期`;
+      
       text += `${idx + 1}. ${item.title}\n`;
-      text += `   状态：${statusConfig[item.status].label} | 优先级：${priorityConfig[item.priority].label} | 责任人：${item.assignee || '未指定'} | ${timeStr}\n`;
+      text += `   ├─ 状态：${statusConfig[item.status].label} | 优先级：${priorityConfig[item.priority].label}\n`;
+      text += `   ├─ 来源：${sourceTypeConfig[item.sourceType].label}「${item.sourceTitle || item.title}」\n`;
+      if (item.relatedNodeId) {
+        text += `   ├─ 关联：节点 #${item.relatedNodeId}\n`;
+      }
+      if (item.relatedControversyId) {
+        text += `   ├─ 关联：争议 #${item.relatedControversyId}\n`;
+      }
+      text += `   ├─ 责任人：${item.assignee || '未指定'} | 下次查看：${formatDate(item.nextReviewDate)}（${timeStr}）\n`;
+      
+      if (item.lastAction) {
+        const actionDate = item.lastActionDate ? `（${formatDate(item.lastActionDate)}）` : '';
+        text += `   ├─ 最近动作${actionDate}：${item.lastAction}\n`;
+      }
+      if (item.nextStep && item.status !== 'resolved') {
+        text += `   ├─ 下一步：${item.nextStep}\n`;
+      }
       if (item.description) {
-        text += `   背景：${item.description}\n`;
+        text += `   └─ 背景：${item.description}\n`;
       }
-      if (item.notes) {
-        text += `   备注：${item.notes}\n`;
-      }
+      
+      if (item.status !== 'resolved') totalActions++;
+      else totalResolved++;
+      text += '\n';
     });
     text += '\n';
   });
 
-  const activeCount = items.filter((i) => i.status !== 'resolved').length;
-  text += `---\n总计 ${activeCount} 项待跟进，${items.length - activeCount} 项已解决。`;
+  text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `📊 会议总结\n`;
+  text += `  • 待跟进事项：${totalActions} 项\n`;
+  text += `  • 已解决事项：${totalResolved} 项\n`;
+  text += `  • 下次会议：${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('zh-CN')}\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
   return text;
 }
@@ -158,10 +198,12 @@ export function MeetingView() {
               {group.items.map((item) => {
                 const status = statusConfig[item.status];
                 const priority = priorityConfig[item.priority];
+                const sourceType = sourceTypeConfig[item.sourceType];
                 const days = getDaysUntil(item.nextReviewDate);
                 const isOverdue = days < 0;
                 const isUrgent = days >= 0 && days <= 2;
                 const StatusIcon = status.icon;
+                const SourceIcon = sourceType.icon;
 
                 return (
                   <div
@@ -170,24 +212,39 @@ export function MeetingView() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                           <StatusIcon size={12} className={status.color} />
                           <span className="text-sm font-medium text-white">{item.title}</span>
                           <span className={cn('text-xs', priority.color)}>
                             [{priority.label}]
                           </span>
+                          <span className="text-xs text-slate-500 flex items-center gap-1">
+                            <SourceIcon size={10} />
+                            {sourceType.label}
+                          </span>
                         </div>
+                        
+                        <p className="text-xs text-slate-400 mb-1.5">
+                          <span className="text-slate-500">来源：</span>{item.sourceTitle}
+                        </p>
+                        
                         <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-2">
                           {item.description}
                         </p>
-                        {item.notes && (
-                          <p className="text-xs text-slate-500 italic">
-                            备注：{item.notes}
+                        
+                        {item.lastAction && (
+                          <p className="text-xs text-slate-400 mb-1">
+                            <span className="text-slate-500">最近动作：</span>{item.lastAction}
+                          </p>
+                        )}
+                        {item.nextStep && item.status !== 'resolved' && (
+                          <p className="text-xs text-blue-300">
+                            <span className="text-slate-500">下一步：</span>{item.nextStep}
                           </p>
                         )}
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="flex items-center gap-1.5 mb-1">
+                        <div className="flex items-center gap-1.5 mb-1 justify-end">
                           <User size={11} className="text-slate-500" />
                           <span className="text-xs text-slate-300">{item.assignee || '未指定'}</span>
                         </div>
@@ -200,6 +257,9 @@ export function MeetingView() {
                           {isOverdue ? `逾期 ${Math.abs(days)} 天` :
                            days === 0 ? '今天到期' :
                            `${days} 天后`}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-1">
+                          {formatDate(item.nextReviewDate)}
                         </div>
                       </div>
                     </div>

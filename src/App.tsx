@@ -2,6 +2,7 @@ import { Navbar } from '@/components/Navbar';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { NodesPage } from '@/pages/NodesPage';
 import { WatchlistPage } from '@/pages/WatchlistPage';
+import { WatchModal } from '@/components/watchlist/WatchModal';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function App() {
@@ -26,6 +27,8 @@ export default function App() {
         <footer className="py-6 text-center text-xs text-slate-600 border-t border-slate-800/50">
           Pulse 口碑观察 · 用数据代替印象
         </footer>
+
+        <WatchModal />
       </div>
     </div>
   );

@@ -2,9 +2,11 @@ export type SentimentType = 'positive' | 'neutral' | 'negative';
 
 export type NodeType = 'hero' | 'skin' | 'season' | 'bundle' | 'patch';
 
-export type WatchStatus = 'watching' | 'resolved' | 'escalated';
+export type WatchStatus = 'pending' | 'watching' | 'escalated' | 'resolved';
 
 export type Priority = 'high' | 'medium' | 'low';
+
+export type SourceType = 'node' | 'controversy' | 'manual';
 
 export interface DailyTemperature {
   date: string;
@@ -59,6 +61,12 @@ export interface WatchItem {
   createdAt: string;
   notes: string;
   relatedNodeId?: string;
+  relatedControversyId?: string;
+  sourceType: SourceType;
+  sourceTitle: string;
+  lastAction?: string;
+  lastActionDate?: string;
+  nextStep?: string;
 }
 
 export interface Competitor {

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Plus, Search, Filter, AlertCircle, LayoutGrid, ListChecks } from 'lucide-react';
+import { Plus, Search, Filter, AlertCircle, LayoutGrid, ListChecks, GitBranch } from 'lucide-react';
 import { WatchCard } from '@/components/watchlist/WatchCard';
-import { WatchModal } from '@/components/watchlist/WatchModal';
 import { MeetingView } from '@/components/watchlist/MeetingView';
+import { ClosedLoopView } from '@/components/watchlist/ClosedLoopView';
 import { useAppStore } from '@/store/useAppStore';
 import type { WatchStatus } from '@/types';
 import { cn } from '@/lib/utils';
@@ -12,9 +12,16 @@ type SortType = 'nextReview' | 'priority' | 'createdAt';
 
 const statusFilters: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: '全部' },
+  { value: 'pending', label: '待处理' },
   { value: 'watching', label: '观察中' },
   { value: 'escalated', label: '需升级' },
   { value: 'resolved', label: '已解决' },
+];
+
+const viewModes: { value: 'cards' | 'meeting' | 'closedloop'; label: string; icon: typeof LayoutGrid }[] = [
+  { value: 'cards', label: '卡片', icon: LayoutGrid },
+  { value: 'meeting', label: '例会', icon: ListChecks },
+  { value: 'closedloop', label: '风险闭环', icon: GitBranch },
 ];
 
 export function WatchlistPage() {
@@ -46,7 +53,7 @@ export function WatchlistPage() {
     });
 
   const urgentCount = watchItems.filter((item) => {
-    if (item.status !== 'watching' && item.status !== 'escalated') return false;
+    if (item.status === 'resolved') return false;
     const daysUntil = Math.ceil(
       (new Date(item.nextReviewDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
     );
@@ -55,6 +62,7 @@ export function WatchlistPage() {
 
   const counts = {
     all: watchItems.length,
+    pending: watchItems.filter((i) => i.status === 'pending').length,
     watching: watchItems.filter((i) => i.status === 'watching').length,
     escalated: watchItems.filter((i) => i.status === 'escalated').length,
     resolved: watchItems.filter((i) => i.status === 'resolved').length,
@@ -71,30 +79,24 @@ export function WatchlistPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-1 bg-slate-800/50 p-1 rounded-lg">
-            <button
-              onClick={() => setWatchlistViewMode('cards')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
-                watchlistViewMode === 'cards'
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              )}
-            >
-              <LayoutGrid size={14} />
-              卡片
-            </button>
-            <button
-              onClick={() => setWatchlistViewMode('meeting')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
-                watchlistViewMode === 'meeting'
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              )}
-            >
-              <ListChecks size={14} />
-              例会
-            </button>
+            {viewModes.map((mode) => {
+              const Icon = mode.icon;
+              return (
+                <button
+                  key={mode.value}
+                  onClick={() => setWatchlistViewMode(mode.value)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+                    watchlistViewMode === mode.value
+                      ? 'bg-slate-700 text-white'
+                      : 'text-slate-400 hover:text-slate-200'
+                  )}
+                >
+                  <Icon size={14} />
+                  {mode.label}
+                </button>
+              );
+            })}
           </div>
           <button
             onClick={() => setShowWatchModal(true)}
@@ -198,8 +200,7 @@ export function WatchlistPage() {
       )}
 
       {watchlistViewMode === 'meeting' && <MeetingView />}
-
-      <WatchModal />
+      {watchlistViewMode === 'closedloop' && <ClosedLoopView />}
     </div>
   );
 }
