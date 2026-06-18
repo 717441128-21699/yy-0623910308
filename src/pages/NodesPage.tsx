@@ -13,8 +13,7 @@ import { Package, Sword } from 'lucide-react';
 export function NodesPage() {
   const selectedNodeId = useAppStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useAppStore((state) => state.setSelectedNodeId);
-  const setCurrentView = useAppStore((state) => state.setCurrentView);
-  const setShowWatchModal = useAppStore((state) => state.setShowWatchModal);
+  const openWatchModalWithPrefill = useAppStore((state) => state.openWatchModalWithPrefill);
 
   const selectedNode = selectedNodeId ? getNodeById(selectedNodeId) : null;
   const nodeComments = selectedNodeId ? getNodeComments(selectedNodeId) : [];
@@ -22,8 +21,11 @@ export function NodesPage() {
 
   const handleAddToWatch = () => {
     if (selectedNode) {
-      setCurrentView('watchlist');
-      setShowWatchModal(true);
+      openWatchModalWithPrefill({
+        title: `关注: ${selectedNode.title}`,
+        description: `${selectedNode.description}。上线前情绪 ${(selectedNode.beforeSentiment * 100).toFixed(0)}%，上线后 ${(selectedNode.afterSentiment * 100).toFixed(0)}%，峰值讨论 ${(selectedNode.peakDiscussion / 1000).toFixed(1)}k。`,
+        relatedNodeId: selectedNode.id,
+      });
     }
   };
 

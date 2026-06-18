@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Minus, ArrowUpRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ArrowUpRight, Eye } from 'lucide-react';
 import type { Controversy } from '@/types';
 import { Card } from '@/components/Card';
 import { cn } from '@/lib/utils';
@@ -22,17 +22,27 @@ const trendConfig = {
 };
 
 export function ControversyList({ items, maxItems }: ControversyListProps) {
-  const setCurrentView = useAppStore((state) => state.setCurrentView);
   const setSelectedNodeId = useAppStore((state) => state.setSelectedNodeId);
+  const setCurrentView = useAppStore((state) => state.setCurrentView);
+  const openWatchModalWithPrefill = useAppStore((state) => state.openWatchModalWithPrefill);
 
   const displayItems = maxItems ? items.slice(0, maxItems) : items;
   const maxHeat = Math.max(...items.map((i) => i.heat));
 
-  const handleClick = (item: Controversy) => {
+  const handleGoToNode = (item: Controversy) => {
     if (item.relatedNodeId) {
       setSelectedNodeId(item.relatedNodeId);
       setCurrentView('nodes');
     }
+  };
+
+  const handleAddToWatch = (e: React.MouseEvent, item: Controversy) => {
+    e.stopPropagation();
+    openWatchModalWithPrefill({
+      title: `跟进: ${item.title}`,
+      description: item.summary + (item.trend === 'rising' ? '（趋势上升中）' : item.trend === 'falling' ? '（趋势回落中）' : '（趋势平稳）'),
+      relatedNodeId: item.relatedNodeId,
+    });
   };
 
   return (
@@ -50,10 +60,9 @@ export function ControversyList({ items, maxItems }: ControversyListProps) {
           return (
             <div
               key={item.id}
-              onClick={() => handleClick(item)}
               className={cn(
                 'p-3 rounded-lg border border-transparent transition-all duration-200',
-                'hover:bg-slate-700/30 hover:border-slate-600/50 cursor-pointer group'
+                'hover:bg-slate-700/30 hover:border-slate-600/50 group'
               )}
             >
               <div className="flex items-start justify-between gap-3">
@@ -95,12 +104,24 @@ export function ControversyList({ items, maxItems }: ControversyListProps) {
                     </span>
                   </div>
                 </div>
-                {item.relatedNodeId && (
-                  <ArrowUpRight
-                    size={14}
-                    className="text-slate-500 group-hover:text-slate-300 transition-colors flex-shrink-0 mt-1"
-                  />
-                )}
+                <div className="flex flex-col gap-1.5 flex-shrink-0 mt-0.5">
+                  {item.relatedNodeId && (
+                    <button
+                      onClick={() => handleGoToNode(item)}
+                      className="p-1.5 rounded text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                      title="查看关联节点"
+                    >
+                      <ArrowUpRight size={14} />
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => handleAddToWatch(e, item)}
+                    className="p-1.5 rounded text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                    title="加入观察清单"
+                  >
+                    <Eye size={14} />
+                  </button>
+                </div>
               </div>
             </div>
           );

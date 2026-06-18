@@ -1,12 +1,11 @@
-import { Clock, User, MoreHorizontal, AlertTriangle, CheckCircle, ArrowUpRight } from 'lucide-react';
+import { useState } from 'react';
+import { Clock, User, MoreHorizontal, AlertTriangle, CheckCircle, ArrowUpRight, Pencil, Trash2 } from 'lucide-react';
 import type { WatchItem, Priority, WatchStatus } from '@/types';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/useAppStore';
 
 interface WatchCardProps {
   item: WatchItem;
-  onEdit?: () => void;
-  onDelete?: () => void;
 }
 
 const priorityConfig: Record<Priority, { label: string; color: string; dotColor: string }> = {
@@ -30,7 +29,7 @@ function getDaysUntil(dateStr: string): number {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
-export function WatchCard({ item, onEdit, onDelete }: WatchCardProps) {
+export function WatchCard({ item }: WatchCardProps) {
   const priority = priorityConfig[item.priority];
   const status = statusConfig[item.status];
   const StatusIcon = status.icon;
@@ -40,12 +39,11 @@ export function WatchCard({ item, onEdit, onDelete }: WatchCardProps) {
   const isUrgent = daysUntil >= 0 && daysUntil <= 2;
 
   const setEditingWatchItem = useAppStore((state) => state.setEditingWatchItem);
+  const deleteWatchItem = useAppStore((state) => state.deleteWatchItem);
   const setCurrentView = useAppStore((state) => state.setCurrentView);
   const setSelectedNodeId = useAppStore((state) => state.setSelectedNodeId);
 
-  const handleEdit = () => {
-    setEditingWatchItem(item);
-  };
+  const [showMenu, setShowMenu] = useState(false);
 
   const handleGoToNode = () => {
     if (item.relatedNodeId) {
@@ -76,12 +74,33 @@ export function WatchCard({ item, onEdit, onDelete }: WatchCardProps) {
               {item.title}
             </h3>
           </div>
-          <button
-            onClick={handleEdit}
-            className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <MoreHorizontal size={16} />
-          </button>
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 transition-colors"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            {showMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                <div className="absolute right-0 top-8 z-20 w-32 bg-slate-700 border border-slate-600/50 rounded-lg shadow-xl py-1">
+                  <button
+                    onClick={() => { setEditingWatchItem(item); setShowMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:bg-slate-600/50 transition-colors"
+                  >
+                    <Pencil size={12} /> 编辑
+                  </button>
+                  <button
+                    onClick={() => { deleteWatchItem(item.id); setShowMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-400 hover:bg-slate-600/50 transition-colors"
+                  >
+                    <Trash2 size={12} /> 删除
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         <p className="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed">
@@ -108,7 +127,7 @@ export function WatchCard({ item, onEdit, onDelete }: WatchCardProps) {
             <div className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center flex-shrink-0">
               <User size={12} className="text-slate-300" />
             </div>
-            <span className="text-xs text-slate-400">{item.assignee}</span>
+            <span className="text-xs text-slate-400">{item.assignee || '未指定'}</span>
           </div>
 
           <div className={cn(

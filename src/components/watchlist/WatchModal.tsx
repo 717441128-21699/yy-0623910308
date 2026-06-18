@@ -1,14 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, ExternalLink } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import type { WatchItem, Priority, WatchStatus } from '@/types';
+import { getNodeById } from '@/data/mockData';
 import { cn } from '@/lib/utils';
-
-interface WatchModalProps {
-  isOpen: boolean;
-  editingItem?: WatchItem | null;
-  onClose: () => void;
-}
 
 const priorities: { value: Priority; label: string; color: string }[] = [
   { value: 'high', label: '高', color: 'text-rose-400' },
@@ -22,10 +17,6 @@ const statuses: { value: WatchStatus; label: string }[] = [
   { value: 'resolved', label: '已解决' },
 ];
 
-function getTodayStr(): string {
-  return new Date().toISOString().split('T')[0];
-}
-
 function getDefaultNextReview(): string {
   const d = new Date();
   d.setDate(d.getDate() + 3);
@@ -35,9 +26,12 @@ function getDefaultNextReview(): string {
 export function WatchModal() {
   const showWatchModal = useAppStore((state) => state.showWatchModal);
   const editingWatchItem = useAppStore((state) => state.editingWatchItem);
+  const prefillData = useAppStore((state) => state.prefillData);
   const setShowWatchModal = useAppStore((state) => state.setShowWatchModal);
   const addWatchItem = useAppStore((state) => state.addWatchItem);
   const updateWatchItem = useAppStore((state) => state.updateWatchItem);
+  const setCurrentView = useAppStore((state) => state.setCurrentView);
+  const setSelectedNodeId = useAppStore((state) => state.setSelectedNodeId);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -48,6 +42,7 @@ export function WatchModal() {
     assignee: '',
     nextReviewDate: getDefaultNextReview(),
     notes: '',
+    relatedNodeId: '' as string,
   });
 
   useEffect(() => {
@@ -61,6 +56,19 @@ export function WatchModal() {
         assignee: editingWatchItem.assignee,
         nextReviewDate: editingWatchItem.nextReviewDate,
         notes: editingWatchItem.notes,
+        relatedNodeId: editingWatchItem.relatedNodeId || '',
+      });
+    } else if (prefillData) {
+      setFormData({
+        title: prefillData.title,
+        description: prefillData.description,
+        sourceUrl: '',
+        priority: prefillData.relatedNodeId ? 'high' : 'medium',
+        status: 'watching',
+        assignee: '',
+        nextReviewDate: getDefaultNextReview(),
+        notes: '',
+        relatedNodeId: prefillData.relatedNodeId || '',
       });
     } else {
       setFormData({
@@ -72,24 +80,47 @@ export function WatchModal() {
         assignee: '',
         nextReviewDate: getDefaultNextReview(),
         notes: '',
+        relatedNodeId: '',
       });
     }
-  }, [editingWatchItem, showWatchModal]);
+  }, [editingWatchItem, prefillData, showWatchModal]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim()) return;
 
+    const itemData = {
+      title: formData.title,
+      description: formData.description,
+      sourceUrl: formData.sourceUrl,
+      priority: formData.priority,
+      status: formData.status,
+      assignee: formData.assignee,
+      nextReviewDate: formData.nextReviewDate,
+      notes: formData.notes,
+      relatedNodeId: formData.relatedNodeId || undefined,
+    };
+
     if (editingWatchItem) {
-      updateWatchItem(editingWatchItem.id, formData);
+      updateWatchItem(editingWatchItem.id, itemData);
     } else {
-      addWatchItem(formData);
+      addWatchItem(itemData);
     }
   };
 
   const handleClose = () => {
     setShowWatchModal(false);
   };
+
+  const handleGoToNode = () => {
+    if (formData.relatedNodeId) {
+      handleClose();
+      setSelectedNodeId(formData.relatedNodeId);
+      setCurrentView('nodes');
+    }
+  };
+
+  const relatedNode = formData.relatedNodeId ? getNodeById(formData.relatedNodeId) : null;
 
   if (!showWatchModal) return null;
 
@@ -112,7 +143,27 @@ export function WatchModal() {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        {relatedNode && (
+          <div className="mx-5 mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ExternalLink size={14} className="text-blue-400" />
+                <span className="text-xs text-blue-400 font-medium">关联节点</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleGoToNode}
+                className="text-xs text-blue-400 hover:text-blue-300 underline"
+              >
+                前往查看
+              </button>
+            </div>
+            <p className="text-sm text-white mt-1">{relatedNode.title}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{relatedNode.description}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1.5">
               标题 <span className="text-rose-400">*</span>
