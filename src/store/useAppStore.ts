@@ -125,6 +125,9 @@ interface AppState {
 
   setSourceWatchItem: (item: SourceWatchItem | null) => void;
   navigateToNodeFromWatch: (nodeId: string, watchItemId: string, watchItemTitle: string) => void;
+  selectNodeManually: (id: string | null) => void;
+
+  bulkUpdateWatchItems: (ids: string[], updates: { status?: WatchStatus; assignee?: string; lastAction?: string }) => number;
 }
 
 function generateId(): string {
@@ -347,5 +350,60 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentView: 'nodes',
       sourceWatchItem: { id: watchItemId, title: watchItemTitle },
     });
+  },
+
+  selectNodeManually: (id) => {
+    set({ selectedNodeId: id, sourceWatchItem: null });
+  },
+
+  bulkUpdateWatchItems: (ids, updates) => {
+    if (ids.length === 0) return 0;
+    const today = getTodayStr();
+    const statusLabels: Record<WatchStatus, string> = {
+      pending: '标记为待处理',
+      watching: '开始跟进',
+      escalated: '升级处理',
+      resolved: '标记为已解决',
+    };
+
+    let updatedCount = 0;
+    const newItems = get().watchItems.map((item) => {
+      if (!ids.includes(item.id)) return item;
+
+      const updated: WatchItem = { ...item, ...updates };
+      const newRecords: ActionRecord[] = [];
+
+      if (updates.lastAction) {
+        newRecords.push({
+          date: today,
+          action: updates.lastAction,
+          status: updates.status || item.status,
+        });
+      }
+
+      if (updates.status && updates.status !== item.status) {
+        const existingFromStatus = newRecords.find((r) => r.action === statusLabels[updates.status!]);
+        if (!existingFromStatus && !updates.lastAction) {
+          newRecords.push({
+            date: today,
+            action: statusLabels[updates.status],
+            status: updates.status,
+          });
+        }
+      }
+
+      if (newRecords.length > 0) {
+        updated.actionTimeline = [...(item.actionTimeline || []), ...newRecords];
+        updatedCount++;
+      }
+
+      return updated;
+    });
+
+    if (updatedCount > 0) {
+      saveToStorage(newItems);
+      set({ watchItems: newItems });
+    }
+    return updatedCount;
   },
 }));

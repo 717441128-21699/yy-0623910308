@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, User, AlertTriangle, CheckCircle, Copy, Check, GitBranch, MessageSquare, Users, Calendar, ChevronDown } from 'lucide-react';
+import { Clock, User, AlertTriangle, CheckCircle, Copy, Check, GitBranch, MessageSquare, Users, Calendar, ChevronDown, Briefcase, Crown } from 'lucide-react';
 import type { WatchItem, Priority, WatchStatus, SourceType, ActionRecord } from '@/types';
 import { useAppStore } from '@/store/useAppStore';
 import { cn } from '@/lib/utils';
@@ -20,7 +20,7 @@ const statusConfig: Record<WatchStatus, { label: string; color: string; icon: ty
 const sourceTypeConfig: Record<SourceType, { label: string; icon: typeof GitBranch }> = {
   node: { label: '版本节点', icon: GitBranch },
   controversy: { label: '社区争议', icon: MessageSquare },
-  manual: { label: '手动添加', icon: Clock },
+  manual: { label: '手动录入', icon: Clock },
 };
 
 function getDaysUntil(dateStr: string): number {
@@ -87,33 +87,13 @@ function groupByAssignee(items: WatchItem[]): { assignee: string; items: WatchIt
     .sort((a, b) => b.items.length - a.items.length);
 }
 
-function groupByReviewDate(items: WatchItem[]): { week: string; items: WatchItem[] }[] {
-  const map = new Map<string, WatchItem[]>();
-  items.forEach((item) => {
-    const date = new Date(item.nextReviewDate);
-    const weekStart = new Date(date);
-    weekStart.setDate(date.getDate() - date.getDay());
-    const key = weekStart.toISOString().split('T')[0];
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(item);
-  });
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([weekStart, items]) => {
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      const fmt = (d: string) => new Date(d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-      return { week: `${fmt(weekStart)} ~ ${fmt(weekEnd.toISOString().split('T')[0])}`, items };
-    });
-}
-
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
 }
 
-type ExportMode = 'urgency' | 'assignee' | 'reviewDate';
+type TemplateType = 'weekly' | 'assignee' | 'executive';
 
-function generateMeetingMinutes(items: WatchItem[], mode: ExportMode): string {
+function generateWeeklyTemplate(items: WatchItem[]): string {
   const today = new Date().toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: 'long',
@@ -122,19 +102,11 @@ function generateMeetingMinutes(items: WatchItem[], mode: ExportMode): string {
   });
 
   let text = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-  text += `       口碑观察例会纪要\n`;
+  text += `       口碑观察周会纪要\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-  text += `日期：${today}\n`;
+  text += `日期：${today}\n\n`;
 
-  if (mode === 'assignee') {
-    text += `分组方式：按负责人\n`;
-  } else if (mode === 'reviewDate') {
-    text += `分组方式：按下次查看时间\n`;
-  } else {
-    text += `分组方式：按紧急程度\n`;
-  }
-  text += '\n';
-
+  const groups = groupForMeeting(items);
   let totalActions = 0;
   let totalResolved = 0;
 
@@ -144,12 +116,6 @@ function generateMeetingMinutes(items: WatchItem[], mode: ExportMode): string {
     let s = `${idx + 1}. ${item.title}\n`;
     s += `   ├─ 状态：${statusConfig[item.status].label} | 优先级：${priorityConfig[item.priority].label}\n`;
     s += `   ├─ 来源：${sourceTypeConfig[item.sourceType].label}「${item.sourceTitle || item.title}」\n`;
-    if (item.relatedNodeId) {
-      s += `   ├─ 关联：节点 #${item.relatedNodeId}\n`;
-    }
-    if (item.relatedControversyId) {
-      s += `   ├─ 关联：争议 #${item.relatedControversyId}\n`;
-    }
     s += `   ├─ 责任人：${item.assignee || '未指定'} | 下次查看：${formatDate(item.nextReviewDate)}（${timeStr}）\n`;
     if (item.lastAction) {
       const actionDate = item.lastActionDate ? `（${formatDate(item.lastActionDate)}）` : '';
@@ -166,50 +132,144 @@ function generateMeetingMinutes(items: WatchItem[], mode: ExportMode): string {
     return s + '\n';
   };
 
-  if (mode === 'assignee') {
-    const groups = groupByAssignee(items);
-    groups.forEach((group) => {
-      text += `【${group.assignee}】（${group.items.length} 项）─────────────────\n`;
-      group.items.forEach((item, idx) => {
-        text += formatItem(item, idx);
-      });
-      text += '\n';
+  groups.forEach((group) => {
+    if (group.items.length === 0) return;
+    text += `【${group.title}】─────────────────────────\n`;
+    group.items.forEach((item, idx) => {
+      text += formatItem(item, idx);
     });
-  } else if (mode === 'reviewDate') {
-    const groups = groupByReviewDate(items);
-    groups.forEach((group) => {
-      text += `【${group.week}】（${group.items.length} 项）─────────────────\n`;
-      group.items.forEach((item, idx) => {
-        text += formatItem(item, idx);
-      });
-      text += '\n';
-    });
-  } else {
-    const groups = groupForMeeting(items);
-    groups.forEach((group) => {
-      if (group.items.length === 0) return;
-      text += `【${group.title}】─────────────────────────\n`;
-      group.items.forEach((item, idx) => {
-        text += formatItem(item, idx);
-      });
-      text += '\n';
-    });
-  }
+    text += '\n';
+  });
 
   text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
   text += `📊 会议总结\n`;
   text += `  • 待跟进事项：${totalActions} 项\n`;
   text += `  • 已解决事项：${totalResolved} 项\n`;
-
-  if (mode === 'assignee') {
-    const groups = groupByAssignee(items.filter((i) => i.status !== 'resolved'));
-    groups.forEach((g) => {
-      text += `  • ${g.assignee}：${g.items.length} 项待跟进\n`;
-    });
-  }
-
   text += `  • 下次会议：${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('zh-CN')}\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+  return text;
+}
+
+function generateAssigneeTemplate(items: WatchItem[]): string {
+  const today = new Date().toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  let text = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `    口碑风险跟进 · 责任人分发版\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `日期：${today}\n`;
+  text += `说明：请各负责人在下次查看时间前完成对应事项的跟进\n\n`;
+
+  const activeItems = items.filter((i) => i.status !== 'resolved');
+  const groups = groupByAssignee(activeItems);
+
+  groups.forEach((group) => {
+    text += `═════════════════════════════════════\n`;
+    text += `👤 ${group.assignee} （${group.items.length} 项待跟进）\n`;
+    text += `═════════════════════════════════════\n\n`;
+
+    group.items.forEach((item, idx) => {
+      const days = getDaysUntil(item.nextReviewDate);
+      const timeStr = days < 0 ? `逾期${Math.abs(days)}天` : days === 0 ? '今天到期' : `${days}天后到期`;
+      const priorityStr = item.priority === 'high' ? '🔴高优' : item.priority === 'medium' ? '🟡中优' : '🟢低优';
+      const overdueTag = days < 0 ? ' ⚠️逾期' : '';
+
+      text += `【${idx + 1}】${priorityStr}${overdueTag} ${item.title}\n`;
+      text += `    📌 状态：${statusConfig[item.status].label} | 下次查看：${formatDate(item.nextReviewDate)}（${timeStr}）\n`;
+      text += `    📎 来源：${sourceTypeConfig[item.sourceType].label}「${item.sourceTitle || item.title}」\n`;
+      if (item.description) {
+        text += `    💬 背景：${item.description}\n`;
+      }
+      if (item.nextStep) {
+        text += `    ✅ 待执行：${item.nextStep}\n`;
+      } else if (item.lastAction) {
+        text += `    📝 最近进展：${item.lastAction}\n`;
+      }
+      text += `    ☐ 已完成    ☐ 需延期    ☐ 需升级\n`;
+      text += `\n`;
+    });
+
+    text += `\n`;
+  });
+
+  text += `\n═════════════════════════════════════\n`;
+  text += `📋 已解决（${items.filter((i) => i.status === 'resolved').length} 项）\n`;
+  items.filter((i) => i.status === 'resolved').slice(0, 5).forEach((item, idx) => {
+    text += `  ${idx + 1}. ✅ ${item.title}\n`;
+  });
+  const resolvedMore = items.filter((i) => i.status === 'resolved').length - 5;
+  if (resolvedMore > 0) text += `  ... 等 ${resolvedMore} 项\n`;
+  text += `═════════════════════════════════════\n`;
+
+  return text;
+}
+
+function generateExecutiveTemplate(items: WatchItem[]): string {
+  const today = new Date().toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const active = items.filter((i) => i.status !== 'resolved');
+  const overdue = active.filter((i) => getDaysUntil(i.nextReviewDate) < 0);
+  const urgent = active.filter((i) => { const d = getDaysUntil(i.nextReviewDate); return d >= 0 && d <= 2; });
+  const highPriority = active.filter((i) => i.priority === 'high');
+  const escalated = active.filter((i) => i.status === 'escalated');
+  const resolved = items.filter((i) => i.status === 'resolved');
+
+  let text = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `      口碑风险 · 老板摘要版\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `日期：${today}\n\n`;
+
+  text += `� 风险概览\n`;
+  text += `  进行中风险：${active.length} 项\n`;
+  text += `  已逾期：${overdue.length} 项    即将到期：${urgent.length} 项\n`;
+  text += `  高优先级：${highPriority.length} 项    需升级：${escalated.length} 项\n`;
+  text += `  已解决：${resolved.length} 项\n\n`;
+
+  if (overdue.length > 0 || escalated.length > 0) {
+    text += `🔴 需要关注\n`;
+    [...overdue, ...escalated].forEach((item, idx) => {
+      const days = getDaysUntil(item.nextReviewDate);
+      const tag = days < 0 ? '逾期' : '升级';
+      text += `  ${idx + 1}. [${tag}] ${item.title} — ${item.assignee || '未指定'}\n`;
+    });
+    text += `\n`;
+  }
+
+  if (highPriority.length > 0) {
+    text += `🟡 高优先级跟进中\n`;
+    highPriority.forEach((item, idx) => {
+      text += `  ${idx + 1}. ${item.title} — ${item.assignee || '未指定'}`;
+      if (item.nextStep) text += ` | 下一步：${item.nextStep}`;
+      text += `\n`;
+    });
+    text += `\n`;
+  }
+
+  if (resolved.length > 0) {
+    text += `🟢 本周已闭环\n`;
+    resolved.slice(0, 3).forEach((item, idx) => {
+      text += `  ${idx + 1}. ✅ ${item.title}\n`;
+    });
+    if (resolved.length > 3) text += `  ... 共 ${resolved.length} 项\n`;
+    text += `\n`;
+  }
+
+  const assigneeStats = groupByAssignee(active);
+  text += `👥 责任人分布\n`;
+  assigneeStats.forEach((g) => {
+    const overdueCount = g.items.filter((i) => getDaysUntil(i.nextReviewDate) < 0).length;
+    text += `  • ${g.assignee}：${g.items.length} 项${overdueCount > 0 ? `（逾期 ${overdueCount}）` : ''}\n`;
+  });
+
+  text += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
   return text;
 }
@@ -217,16 +277,20 @@ function generateMeetingMinutes(items: WatchItem[], mode: ExportMode): string {
 export function MeetingView() {
   const watchItems = useAppStore((state) => state.watchItems);
   const [copied, setCopied] = useState(false);
-  const [exportMode, setExportMode] = useState<ExportMode>('urgency');
-  const [showModeMenu, setShowModeMenu] = useState(false);
+  const [template, setTemplate] = useState<TemplateType>('weekly');
+  const [showMenu, setShowMenu] = useState(false);
 
   const groups = groupForMeeting(watchItems);
 
-  const handleExport = (mode: ExportMode) => {
-    const text = generateMeetingMinutes(watchItems, mode);
+  const handleExport = (tpl: TemplateType) => {
+    let text = '';
+    if (tpl === 'weekly') text = generateWeeklyTemplate(watchItems);
+    else if (tpl === 'assignee') text = generateAssigneeTemplate(watchItems);
+    else text = generateExecutiveTemplate(watchItems);
+
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
-      setShowModeMenu(false);
+      setShowMenu(false);
       setTimeout(() => setCopied(false), 2000);
     }).catch(() => {
       const textarea = document.createElement('textarea');
@@ -236,16 +300,19 @@ export function MeetingView() {
       document.execCommand('copy');
       document.body.removeChild(textarea);
       setCopied(true);
-      setShowModeMenu(false);
+      setShowMenu(false);
       setTimeout(() => setCopied(false), 2000);
     });
   };
 
-  const exportModeLabels: Record<ExportMode, string> = {
-    urgency: '按紧急程度',
-    assignee: '按负责人',
-    reviewDate: '按查看时间',
-  };
+  const templateOptions: { tpl: TemplateType; label: string; icon: typeof Users; desc: string }[] = [
+    { tpl: 'weekly', label: '周会版', icon: Calendar, desc: '按紧急程度，完整信息' },
+    { tpl: 'assignee', label: '负责人跟进版', icon: Users, desc: '按责任人分组，行动项格式' },
+    { tpl: 'executive', label: '老板摘要版', icon: Crown, desc: '精简要点，适合快速浏览' },
+  ];
+
+  const currentTpl = templateOptions.find((o) => o.tpl === template)!;
+  const TplIcon = currentTpl.icon;
 
   return (
     <div className="animate-fade-in">
@@ -257,42 +324,42 @@ export function MeetingView() {
         <div className="flex items-center gap-2">
           <div className="relative">
             <button
-              onClick={() => setShowModeMenu(!showModeMenu)}
+              onClick={() => setShowMenu(!showMenu)}
               className="px-3 py-2 text-sm text-slate-300 bg-slate-700/50 hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-1.5"
             >
-              {exportMode === 'assignee' ? <Users size={14} /> :
-               exportMode === 'reviewDate' ? <Calendar size={14} /> :
-               <Copy size={14} />}
-              {exportModeLabels[exportMode]}
+              <TplIcon size={14} />
+              {currentTpl.label}
               <ChevronDown size={12} className="text-slate-500" />
             </button>
-            {showModeMenu && (
+            {showMenu && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowModeMenu(false)} />
-                <div className="absolute right-0 top-10 z-20 w-44 bg-slate-700 border border-slate-600/50 rounded-lg shadow-xl py-1">
-                  {([
-                    { mode: 'urgency' as const, label: '按紧急程度', icon: AlertTriangle },
-                    { mode: 'assignee' as const, label: '按负责人分发', icon: Users },
-                    { mode: 'reviewDate' as const, label: '按查看时间', icon: Calendar },
-                  ]).map((opt) => (
-                    <button
-                      key={opt.mode}
-                      onClick={() => { setExportMode(opt.mode); setShowModeMenu(false); }}
-                      className={cn(
-                        'w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors',
-                        exportMode === opt.mode ? 'text-blue-400 bg-blue-500/10' : 'text-slate-300 hover:bg-slate-600/50'
-                      )}
-                    >
-                      <opt.icon size={12} />
-                      {opt.label}
-                    </button>
-                  ))}
+                <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                <div className="absolute right-0 top-10 z-20 w-56 bg-slate-700 border border-slate-600/50 rounded-lg shadow-xl py-1">
+                  {templateOptions.map((opt) => {
+                    const OptIcon = opt.icon;
+                    return (
+                      <button
+                        key={opt.tpl}
+                        onClick={() => { setTemplate(opt.tpl); setShowMenu(false); }}
+                        className={cn(
+                          'w-full flex items-start gap-2.5 px-3 py-2.5 transition-colors text-left',
+                          template === opt.tpl ? 'text-blue-400 bg-blue-500/10' : 'text-slate-300 hover:bg-slate-600/50'
+                        )}
+                      >
+                        <OptIcon size={14} className="mt-0.5 flex-shrink-0" />
+                        <div>
+                          <div className="text-xs font-medium">{opt.label}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">{opt.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}
           </div>
           <button
-            onClick={() => handleExport(exportMode)}
+            onClick={() => handleExport(template)}
             className={cn(
               'px-4 py-2 text-sm rounded-lg transition-all flex items-center gap-2',
               copied
@@ -301,7 +368,7 @@ export function MeetingView() {
             )}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
-            {copied ? '已复制' : '复制会议纪要'}
+            {copied ? '已复制' : `复制${currentTpl.label}`}
           </button>
         </div>
       </div>

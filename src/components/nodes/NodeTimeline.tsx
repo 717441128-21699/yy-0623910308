@@ -17,7 +17,7 @@ const nodeTypeConfig: Record<NodeType, { icon: typeof Sword; label: string; colo
 
 export function NodeTimeline({ nodes }: NodeTimelineProps) {
   const selectedNodeId = useAppStore((state) => state.selectedNodeId);
-  const setSelectedNodeId = useAppStore((state) => state.setSelectedNodeId);
+  const selectNodeManually = useAppStore((state) => state.selectNodeManually);
 
   const sortedNodes = [...nodes].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -38,7 +38,7 @@ export function NodeTimeline({ nodes }: NodeTimelineProps) {
             return (
               <button
                 key={node.id}
-                onClick={() => setSelectedNodeId(isSelected ? null : node.id)}
+                onClick={() => selectNodeManually(isSelected ? null : node.id)}
                 className={cn(
                   'w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-all duration-200 relative',
                   isSelected

@@ -22,9 +22,9 @@ const statusConfig: Record<WatchStatus, { label: string; color: string; bgColor:
 };
 
 const sourceTypeConfig: Record<SourceType, { label: string; icon: typeof GitBranch }> = {
-  node: { label: '节点', icon: GitBranch },
-  controversy: { label: '争议', icon: MessageSquare },
-  manual: { label: '手动', icon: Clock },
+  node: { label: '版本节点', icon: GitBranch },
+  controversy: { label: '社区争议', icon: MessageSquare },
+  manual: { label: '手动录入', icon: Clock },
 };
 
 function getDaysUntil(dateStr: string): number {

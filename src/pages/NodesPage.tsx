@@ -12,7 +12,7 @@ import { Package, Sword, X, ArrowRight } from 'lucide-react';
 
 export function NodesPage() {
   const selectedNodeId = useAppStore((state) => state.selectedNodeId);
-  const setSelectedNodeId = useAppStore((state) => state.setSelectedNodeId);
+  const selectNodeManually = useAppStore((state) => state.selectNodeManually);
   const openWatchModalWithPrefill = useAppStore((state) => state.openWatchModalWithPrefill);
   const sourceWatchItem = useAppStore((state) => state.sourceWatchItem);
   const setSourceWatchItem = useAppStore((state) => state.setSourceWatchItem);
@@ -118,7 +118,7 @@ export function NodesPage() {
                 从左侧时间轴选择一个版本节点，查看该事件前后的社区讨论热度和典型评论
               </p>
               <button
-                onClick={() => setSelectedNodeId(versionNodes[0].id)}
+                onClick={() => selectNodeManually(versionNodes[0].id)}
                 className="mt-6 px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
               >
                 查看最新节点
