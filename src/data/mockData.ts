@@ -194,6 +194,11 @@ export const watchItems: WatchItem[] = [
     lastAction: '观察了上线后7天数据，胜率58%偏高',
     lastActionDate: daysAgo(1),
     nextStep: '等待热修补丁上线后复测',
+    actionTimeline: [
+      { date: daysAgo(3), action: '创建观察项', status: 'pending' },
+      { date: daysAgo(2), action: '开始跟进，指定李平衡负责', status: 'watching' },
+      { date: daysAgo(1), action: '观察了上线后7天数据，胜率58%偏高', status: 'watching' },
+    ],
   },
   {
     id: 'w-002',
@@ -212,6 +217,10 @@ export const watchItems: WatchItem[] = [
     lastAction: '整理了近30天玩家反馈关键词',
     lastActionDate: daysAgo(2),
     nextStep: '拉算法同学一起评估ELO阈值调整方案',
+    actionTimeline: [
+      { date: daysAgo(7), action: '创建观察项', status: 'pending' },
+      { date: daysAgo(2), action: '整理了近30天玩家反馈关键词', status: 'pending' },
+    ],
   },
   {
     id: 'w-003',
@@ -230,6 +239,11 @@ export const watchItems: WatchItem[] = [
     lastAction: '对比了历史3款传说皮肤的首周数据',
     lastActionDate: daysAgo(1),
     nextStep: '观察打折活动期间销量变化',
+    actionTimeline: [
+      { date: daysAgo(4), action: '创建观察项', status: 'pending' },
+      { date: daysAgo(3), action: '开始跟进，指定张商业化负责', status: 'watching' },
+      { date: daysAgo(1), action: '对比了历史3款传说皮肤的首周数据', status: 'watching' },
+    ],
   },
   {
     id: 'w-004',
@@ -248,6 +262,12 @@ export const watchItems: WatchItem[] = [
     lastAction: '升级为技术重点问题，成立专项小组',
     lastActionDate: daysAgo(3),
     nextStep: '下周输出性能优化方案',
+    actionTimeline: [
+      { date: daysAgo(10), action: '创建观察项', status: 'pending' },
+      { date: daysAgo(8), action: '开始跟进，指定陈技术负责', status: 'watching' },
+      { date: daysAgo(5), action: '收集了中低端机型帧率数据', status: 'watching' },
+      { date: daysAgo(3), action: '升级为技术重点问题，成立专项小组', status: 'escalated' },
+    ],
   },
   {
     id: 'w-005',
@@ -265,6 +285,13 @@ export const watchItems: WatchItem[] = [
     lastAction: '新反作弊系统上线，数据验证通过',
     lastActionDate: daysAgo(5),
     nextStep: '闭环，不再跟进',
+    actionTimeline: [
+      { date: daysAgo(20), action: '创建观察项', status: 'pending' },
+      { date: daysAgo(15), action: '开始跟进，指定赵运营负责', status: 'watching' },
+      { date: daysAgo(10), action: '整理外挂举报数据，联系安全团队', status: 'watching' },
+      { date: daysAgo(7), action: '升级处理，推动反作弊系统排期', status: 'escalated' },
+      { date: daysAgo(5), action: '新反作弊系统上线，数据验证通过', status: 'resolved' },
+    ],
   },
 ];
 

@@ -49,15 +49,13 @@ export function WatchCard({ item }: WatchCardProps) {
 
   const setEditingWatchItem = useAppStore((state) => state.setEditingWatchItem);
   const deleteWatchItem = useAppStore((state) => state.deleteWatchItem);
-  const setCurrentView = useAppStore((state) => state.setCurrentView);
-  const setSelectedNodeId = useAppStore((state) => state.setSelectedNodeId);
+  const navigateToNodeFromWatch = useAppStore((state) => state.navigateToNodeFromWatch);
 
   const [showMenu, setShowMenu] = useState(false);
 
   const handleGoToSource = () => {
     if (item.relatedNodeId) {
-      setSelectedNodeId(item.relatedNodeId);
-      setCurrentView('nodes');
+      navigateToNodeFromWatch(item.relatedNodeId, item.id, item.title);
     }
   };
 

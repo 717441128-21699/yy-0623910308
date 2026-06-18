@@ -1,5 +1,6 @@
-import { Clock, User, AlertTriangle, CheckCircle, ArrowUpRight, Pencil, GitBranch, MessageSquare } from 'lucide-react';
-import type { WatchItem, WatchStatus, SourceType, Priority } from '@/types';
+import { useState } from 'react';
+import { Clock, User, AlertTriangle, CheckCircle, ArrowUpRight, Pencil, GitBranch, MessageSquare, ChevronDown, ChevronRight, X } from 'lucide-react';
+import type { WatchItem, WatchStatus, SourceType, Priority, ActionRecord } from '@/types';
 import { useAppStore } from '@/store/useAppStore';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +14,13 @@ const sourceTypeConfig: Record<SourceType, { label: string; icon: typeof GitBran
   node: { label: '节点', icon: GitBranch },
   controversy: { label: '争议', icon: MessageSquare },
   manual: { label: '手动', icon: Clock },
+};
+
+const statusDotConfig: Record<WatchStatus, { color: string; bgColor: string }> = {
+  pending: { color: 'bg-slate-400', bgColor: 'bg-slate-400' },
+  watching: { color: 'bg-blue-400', bgColor: 'bg-blue-400' },
+  escalated: { color: 'bg-rose-400', bgColor: 'bg-rose-400' },
+  resolved: { color: 'bg-emerald-400', bgColor: 'bg-emerald-400' },
 };
 
 const statusGroups: { key: WatchStatus; label: string; description: string; icon: typeof Clock; color: string; bgColor: string }[] = [
@@ -31,6 +39,41 @@ function getDaysUntil(dateStr: string): number {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+}
+
+interface TimelineProps {
+  timeline: ActionRecord[];
+}
+
+function ActionTimeline({ timeline }: TimelineProps) {
+  if (!timeline || timeline.length === 0) return null;
+
+  return (
+    <div className="ml-5 pl-4 border-l-2 border-slate-700/50 space-y-2 py-1">
+      {timeline.map((record, idx) => {
+        const dotConfig = statusDotConfig[record.status];
+        const isLast = idx === timeline.length - 1;
+        return (
+          <div key={idx} className="relative flex items-start gap-2">
+            <div className={cn(
+              'absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border-2 border-slate-800',
+              dotConfig.color
+            )} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-300">{record.action}</span>
+              </div>
+              <span className="text-[10px] text-slate-500">{formatDate(record.date)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 interface ItemRowProps {
   item: WatchItem;
 }
@@ -39,18 +82,18 @@ function ItemRow({ item }: ItemRowProps) {
   const priority = priorityConfig[item.priority];
   const SourceIcon = sourceTypeConfig[item.sourceType].icon;
   const setEditingWatchItem = useAppStore((state) => state.setEditingWatchItem);
-  const setCurrentView = useAppStore((state) => state.setCurrentView);
-  const setSelectedNodeId = useAppStore((state) => state.setSelectedNodeId);
+  const navigateToNodeFromWatch = useAppStore((state) => state.navigateToNodeFromWatch);
 
   const daysUntil = getDaysUntil(item.nextReviewDate);
   const isOverdue = daysUntil < 0;
   const isUrgent = daysUntil >= 0 && daysUntil <= 2;
   const needsAttention = item.status !== 'resolved' && (isOverdue || isUrgent);
 
+  const [expanded, setExpanded] = useState(false);
+
   const handleGoToSource = () => {
     if (item.relatedNodeId) {
-      setSelectedNodeId(item.relatedNodeId);
-      setCurrentView('nodes');
+      navigateToNodeFromWatch(item.relatedNodeId, item.id, item.title);
     }
   };
 
@@ -59,7 +102,14 @@ function ItemRow({ item }: ItemRowProps) {
       'group bg-slate-800/50 hover:bg-slate-800 border-b border-slate-700/30 px-4 py-3 transition-colors',
       needsAttention && 'bg-amber-500/5'
     )}>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="p-0.5 text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
+        >
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', priority.dotColor)} />
           <span className="text-sm text-white truncate">{item.title}</span>
@@ -111,11 +161,24 @@ function ItemRow({ item }: ItemRowProps) {
         </div>
       </div>
 
-      {item.nextStep && item.status !== 'resolved' && (
-        <div className="mt-2 ml-5 pl-3 border-l border-slate-600/30">
+      {item.nextStep && item.status !== 'resolved' && !expanded && (
+        <div className="mt-1 ml-9 pl-3 border-l border-slate-600/30">
           <p className="text-xs text-blue-300">
             <span className="text-slate-500">下一步：</span>{item.nextStep}
           </p>
+        </div>
+      )}
+
+      {expanded && (
+        <div className="mt-3 ml-9">
+          {item.nextStep && item.status !== 'resolved' && (
+            <div className="mb-3 pl-3 border-l border-blue-500/30">
+              <p className="text-xs text-blue-300">
+                <span className="text-slate-500">下一步：</span>{item.nextStep}
+              </p>
+            </div>
+          )}
+          <ActionTimeline timeline={item.actionTimeline || []} />
         </div>
       )}
     </div>
@@ -161,6 +224,7 @@ export function ClosedLoopView() {
       <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl overflow-hidden">
         <div className="px-4 py-3 bg-slate-800/80 border-b border-slate-700/50">
           <div className="flex items-center gap-4">
+            <span className="w-5 flex-shrink-0" />
             <div className="flex-1 text-xs text-slate-400 font-medium">事项</div>
             <div className="flex items-center gap-3 w-[500px] flex-shrink-0">
               <span className="text-xs text-slate-400 font-medium w-40">来源</span>
@@ -196,12 +260,7 @@ export function ClosedLoopView() {
 
       <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
         <span>共 {watchItems.length} 项，进行中 {totalActive} 项，已解决 {totalResolved} 项</span>
-        <button
-          onClick={() => setEditingWatchItem(null)}
-          className="text-slate-400 hover:text-slate-200 transition-colors"
-        >
-          提示：点击行尾编辑按钮可更新处理动作
-        </button>
+        <span>点击行首箭头展开处理时间线</span>
       </div>
     </div>
   );

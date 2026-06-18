@@ -8,12 +8,14 @@ import {
   getNodeComments,
   getNodeDailyData,
 } from '@/data/mockData';
-import { Package, Sword } from 'lucide-react';
+import { Package, Sword, X, ArrowRight } from 'lucide-react';
 
 export function NodesPage() {
   const selectedNodeId = useAppStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useAppStore((state) => state.setSelectedNodeId);
   const openWatchModalWithPrefill = useAppStore((state) => state.openWatchModalWithPrefill);
+  const sourceWatchItem = useAppStore((state) => state.sourceWatchItem);
+  const setSourceWatchItem = useAppStore((state) => state.setSourceWatchItem);
 
   const selectedNode = selectedNodeId ? getNodeById(selectedNodeId) : null;
   const nodeComments = selectedNodeId ? getNodeComments(selectedNodeId) : [];
@@ -31,6 +33,10 @@ export function NodesPage() {
         priority: sentimentDiff < -0.1 ? 'high' : 'medium',
       });
     }
+  };
+
+  const handleDismissSource = () => {
+    setSourceWatchItem(null);
   };
 
   return (
@@ -63,6 +69,30 @@ export function NodesPage() {
         </div>
       </div>
 
+      {sourceWatchItem && selectedNode && (
+        <div className="mb-6 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-between animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <ArrowRight size={16} className="text-blue-400" />
+            </div>
+            <div>
+              <p className="text-sm text-blue-300 font-medium">
+                来自观察项：「{sourceWatchItem.title}」
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                当前查看的是该风险关联的节点，下方波峰图和评论摘要为关键信息
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleDismissSource}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors flex-shrink-0"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-12 gap-6">
         <div className="col-span-12 lg:col-span-3">
           <NodeTimeline nodes={versionNodes} />
@@ -71,8 +101,12 @@ export function NodesPage() {
         <div className="col-span-12 lg:col-span-9 space-y-6">
           {selectedNode ? (
             <>
-              <NodeDetailChart node={selectedNode} dailyData={nodeDailyData} />
-              <CommentList comments={nodeComments} nodeTitle={selectedNode.title} />
+              <div className={sourceWatchItem ? 'ring-2 ring-blue-500/30 rounded-xl' : ''}>
+                <NodeDetailChart node={selectedNode} dailyData={nodeDailyData} />
+              </div>
+              <div className={sourceWatchItem ? 'ring-2 ring-blue-500/30 rounded-xl' : ''}>
+                <CommentList comments={nodeComments} nodeTitle={selectedNode.title} />
+              </div>
             </>
           ) : (
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-16 flex flex-col items-center justify-center text-center">

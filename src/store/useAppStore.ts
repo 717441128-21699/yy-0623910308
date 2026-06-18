@@ -1,19 +1,61 @@
 import { create } from 'zustand';
-import type { WatchItem, Priority, WatchStatus, SourceType } from '../types';
+import type { WatchItem, Priority, WatchStatus, SourceType, ActionRecord } from '../types';
 import { watchItems as initialWatchItems } from '../data/mockData';
 
 const STORAGE_KEY = 'pulse_watch_items';
+
+function migrateItem(item: any): WatchItem {
+  return {
+    id: item.id || '',
+    title: item.title || '',
+    description: item.description || '',
+    sourceUrl: item.sourceUrl || '',
+    priority: item.priority || 'medium',
+    status: item.status || 'pending',
+    assignee: item.assignee || '',
+    nextReviewDate: item.nextReviewDate || getDefaultNextReview(),
+    createdAt: item.createdAt || getTodayStr(),
+    notes: item.notes || '',
+    relatedNodeId: item.relatedNodeId || undefined,
+    relatedControversyId: item.relatedControversyId || undefined,
+    sourceType: item.sourceType || (item.relatedNodeId ? 'node' : item.relatedControversyId ? 'controversy' : 'manual'),
+    sourceTitle: item.sourceTitle || item.title || '手动录入',
+    lastAction: item.lastAction || undefined,
+    lastActionDate: item.lastActionDate || undefined,
+    nextStep: item.nextStep || undefined,
+    actionTimeline: item.actionTimeline || buildInitialTimeline(item),
+  };
+}
+
+function buildInitialTimeline(item: any): ActionRecord[] {
+  const timeline: ActionRecord[] = [];
+  if (item.createdAt) {
+    timeline.push({ date: item.createdAt, action: '创建观察项', status: item.status || 'pending' });
+  }
+  if (item.lastAction && item.lastActionDate) {
+    timeline.push({ date: item.lastActionDate, action: item.lastAction, status: item.status || 'watching' });
+  }
+  return timeline;
+}
 
 function loadFromStorage(): WatchItem[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        const migrated = parsed.map(migrateItem);
+        const needsSave = JSON.stringify(parsed) !== JSON.stringify(migrated);
+        if (needsSave) {
+          saveToStorage(migrated);
+        }
+        return migrated;
+      }
     }
   } catch {
     // ignore parse errors
   }
-  return initialWatchItems;
+  return initialWatchItems.map(migrateItem);
 }
 
 function saveToStorage(items: WatchItem[]) {
@@ -44,6 +86,11 @@ interface BulkAddItem {
   priority?: Priority;
 }
 
+interface SourceWatchItem {
+  id: string;
+  title: string;
+}
+
 interface AppState {
   currentView: 'dashboard' | 'nodes' | 'watchlist';
   selectedNodeId: string | null;
@@ -55,6 +102,7 @@ interface AppState {
   watchlistViewMode: 'cards' | 'meeting' | 'closedloop';
   selectedControversyIds: Set<string>;
   showBulkAddToast: boolean;
+  sourceWatchItem: SourceWatchItem | null;
 
   setCurrentView: (view: 'dashboard' | 'nodes' | 'watchlist') => void;
   setSelectedNodeId: (id: string | null) => void;
@@ -74,6 +122,9 @@ interface AppState {
   clearControversySelection: () => void;
   isControversySelected: (id: string) => boolean;
   setShowBulkAddToast: (show: boolean) => void;
+
+  setSourceWatchItem: (item: SourceWatchItem | null) => void;
+  navigateToNodeFromWatch: (nodeId: string, watchItemId: string, watchItemTitle: string) => void;
 }
 
 function generateId(): string {
@@ -101,15 +152,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   watchlistViewMode: 'cards',
   selectedControversyIds: new Set(),
   showBulkAddToast: false,
+  sourceWatchItem: null,
 
   setCurrentView: (view) => set({ currentView: view }),
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   setSelectedDate: (date) => set({ selectedDate: date }),
 
   addWatchItem: (item) => {
+    const today = getTodayStr();
+    const timeline: ActionRecord[] = [
+      { date: today, action: '创建观察项', status: item.status },
+    ];
     const newItems = [
       ...get().watchItems,
-      { ...item, id: generateId(), createdAt: getTodayStr() },
+      { ...item, id: generateId(), createdAt: today, actionTimeline: timeline },
     ];
     saveToStorage(newItems);
     set({
@@ -129,9 +185,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { added: false, existingId: existing.id };
     }
 
+    const today = getTodayStr();
     const newItem: WatchItem = {
       id: generateId(),
-      createdAt: getTodayStr(),
+      createdAt: today,
       title: item.title,
       description: item.description,
       sourceUrl: '',
@@ -144,6 +201,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       relatedControversyId: item.relatedControversyId,
       sourceType: item.sourceType,
       sourceTitle: item.sourceTitle,
+      actionTimeline: [{ date: today, action: '创建观察项', status: 'pending' }],
     };
 
     const newItems = [...get().watchItems, newItem];
@@ -157,6 +215,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     let skipped = 0;
     const existing = get().watchItems;
     const newItems: WatchItem[] = [];
+    const today = getTodayStr();
 
     items.forEach((item) => {
       const duplicate = existing.find((w) =>
@@ -179,7 +238,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       newItems.push({
         id: generateId(),
-        createdAt: getTodayStr(),
+        createdAt: today,
         title: item.title,
         description: item.description,
         sourceUrl: '',
@@ -192,6 +251,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         relatedControversyId: item.relatedControversyId,
         sourceType: item.sourceType,
         sourceTitle: item.sourceTitle,
+        actionTimeline: [{ date: today, action: '创建观察项', status: 'pending' }],
       });
       added++;
     });
@@ -207,9 +267,35 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   updateWatchItem: (id, updates) => {
-    const newItems = get().watchItems.map((item) =>
-      item.id === id ? { ...item, ...updates } : item
-    );
+    const newItems = get().watchItems.map((item) => {
+      if (item.id !== id) return item;
+
+      const updated = { ...item, ...updates };
+
+      if (updates.lastAction !== undefined && updates.lastAction !== item.lastAction) {
+        const newRecord: ActionRecord = {
+          date: updates.lastActionDate || getTodayStr(),
+          action: updates.lastAction,
+          status: updates.status || item.status,
+        };
+        updated.actionTimeline = [...(item.actionTimeline || []), newRecord];
+      } else if (updates.status && updates.status !== item.status && !updates.lastAction) {
+        const statusLabels: Record<WatchStatus, string> = {
+          pending: '标记为待处理',
+          watching: '开始跟进',
+          escalated: '升级处理',
+          resolved: '标记为已解决',
+        };
+        const newRecord: ActionRecord = {
+          date: getTodayStr(),
+          action: statusLabels[updates.status],
+          status: updates.status,
+        };
+        updated.actionTimeline = [...(item.actionTimeline || []), newRecord];
+      }
+
+      return updated;
+    });
     saveToStorage(newItems);
     set({
       watchItems: newItems,
@@ -252,4 +338,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   isControversySelected: (id) => get().selectedControversyIds.has(id),
 
   setShowBulkAddToast: (show) => set({ showBulkAddToast: show }),
+
+  setSourceWatchItem: (item) => set({ sourceWatchItem: item }),
+
+  navigateToNodeFromWatch: (nodeId, watchItemId, watchItemTitle) => {
+    set({
+      selectedNodeId: nodeId,
+      currentView: 'nodes',
+      sourceWatchItem: { id: watchItemId, title: watchItemTitle },
+    });
+  },
 }));

@@ -49,6 +49,12 @@ export interface Comment {
   source: string;
 }
 
+export interface ActionRecord {
+  date: string;
+  action: string;
+  status: WatchStatus;
+}
+
 export interface WatchItem {
   id: string;
   title: string;
@@ -67,6 +73,7 @@ export interface WatchItem {
   lastAction?: string;
   lastActionDate?: string;
   nextStep?: string;
+  actionTimeline?: ActionRecord[];
 }
 
 export interface Competitor {
